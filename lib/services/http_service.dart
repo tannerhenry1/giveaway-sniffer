@@ -20,11 +20,26 @@ class HttpService with ReactiveServiceMixin {
 
   static const String getTopGameIdUrl = 'https://api.twitch.tv/helix/games/top';
 
+  static const String getSubsId = 'https://api.twitch.tv/helix/subscriptions';
+
   String _accessToken = '';
   String get accessToken => _accessToken;
 
   final List<Streams> _twitchStream = ReactiveList();
-  List<Streams> get twitchStream => _twitchStream;
+  List<Streams> get twitchStream {
+    _twitchStream.sort((a, b) {
+      if (a.giveaway == b.giveaway) {
+        return 0;
+      } else if (a.giveaway) {
+        return -1;
+      }
+      return 1;
+    });
+    return [..._twitchStream];
+  }
+
+  final List<Streams> _streamsWithGiveaways = ReactiveList();
+  List<Streams> get streamsWithGiveaways => _streamsWithGiveaways;
 
   final ReactiveList<Game> _topGames = ReactiveList();
   List<Game> get topGames => _topGames;
@@ -50,11 +65,12 @@ class HttpService with ReactiveServiceMixin {
     _topGames.clear();
     // Loop through games and pull data
     for (var data in json.decode(gameResponse.body)['data']) {
-      _topGames.add(
-        Game(name: data['name'], id: data['id'], boxArt: data['box_art_url']),
-      );
+      if (data['name'] != 'Slots') {
+        _topGames.add(
+          Game(name: data['name'], id: data['id'], boxArt: data['box_art_url']),
+        );
+      }
     }
-    log.i('Top Games: $_topGames');
   }
 
   Future<void> fetchStreamsFromSelection(Game selection) async {
@@ -68,42 +84,59 @@ class HttpService with ReactiveServiceMixin {
     );
     _twitchStream.clear();
     for (var data in json.decode(streamResponse.body)['data']) {
-      // TODO figure out how to speed this up, maybe do computation in the background?
-      data['title'].split(' ').forEach((word) {
-        if (word.contains('!giveaway') ||
-            word.contains('giveaway') ||
-            word.contains('prize') ||
-            word.contains('!prize') ||
-            word.contains('free') ||
-            word.contains('!free')) {
-          _twitchStream.add(
-            Streams(
-              userName: data['user_name'],
-              streamTitle: data['title'],
-              tagIds: data['tag_ids'],
-              viewerCount: data['viewer_count'],
-              giveaway: true,
-            ),
-          );
-        } else {
-          _twitchStream.add(
-            Streams(
-              userName: data['user_name'],
-              streamTitle: data['title'],
-              tagIds: data['tag_ids'],
-              viewerCount: data['viewer_count'],
-              giveaway: false,
-            ),
-          );
-        }
-      });
+      _twitchStream.add(
+        Streams(
+          userName: data['user_name'],
+          streamTitle: data['title'],
+          tagIds: data['tag_ids'],
+          viewerCount: data['viewer_count'],
+          giveaway: false,
+        ),
+      );
     }
+  }
+
+  Future<void> fetchAllGiveaways() async {
+    var header = {
+      'Client-Id': clientId,
+      'Authorization': 'Bearer $_accessToken',
+    };
+    for (var game in topGames) {
+      log.i('Sniffing ${game.name}');
+      var streamResponse = await http.get(
+        Uri.parse('$getStreamsUrl?game_id=${game.id}&language=en&first=100'),
+        headers: header,
+      );
+      for (var stream in json.decode(streamResponse.body)['data']) {
+        stream['title'].split(' ').forEach((word) {
+          word = word.toLowerCase();
+          if (word.contains('giveaway')) {
+            _streamsWithGiveaways.add(
+              Streams(
+                userName: stream['user_name'],
+                streamTitle: stream['title'],
+                tagIds: stream['tag_ids'],
+                viewerCount: stream['viewer_count'],
+                giveaway: true,
+              ),
+            );
+          }
+        });
+      }
+    }
+    log.i('Done with giveaway search');
+  }
+
+  void setGiveawayTrue(int index) {
+    _twitchStream[index].giveaway = true;
+    notifyListeners();
   }
 
   HttpService() {
     listenToReactiveValues([
       _topGames,
       _twitchStream,
+      _streamsWithGiveaways,
     ]);
   }
 }

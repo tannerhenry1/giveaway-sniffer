@@ -16,7 +16,9 @@ class StreamListView extends StatelessWidget {
       builder: (context, model, child) => Scaffold(
         appBar: AppBar(
           centerTitle: true,
-          title: const Text('Top Streamers in Category'),
+          title: Text(
+            'Top Streamers in ${selection.name}',
+          ),
         ),
         body: LoadingOverlay(
           isLoading: model.isLoading,

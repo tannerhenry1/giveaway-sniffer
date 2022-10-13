@@ -15,6 +15,17 @@ class GameListView extends StatelessWidget {
         appBar: AppBar(
           centerTitle: true,
           title: const Text('Top Games List'),
+          actions: [
+            model.isLoadingAppbar
+                ? const Center(
+                  child: CircularProgressIndicator(
+                      color: Colors.black,
+                    ),
+                )
+                : IconButton(
+                    onPressed: () => model.fetchAllLiveGiveaways(),
+                    icon: const Icon(Icons.downloading))
+          ],
         ),
         body: LoadingOverlay(
           isLoading: model.isLoading,
