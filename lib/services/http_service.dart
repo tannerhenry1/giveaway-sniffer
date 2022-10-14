@@ -39,7 +39,11 @@ class HttpService with ReactiveServiceMixin {
   }
 
   final List<Streams> _streamsWithGiveaways = ReactiveList();
-  List<Streams> get streamsWithGiveaways => _streamsWithGiveaways;
+  List<Streams> get streamsWithGiveaways {
+    _streamsWithGiveaways
+        .sort((a, b) => b.viewerCount.compareTo(a.viewerCount));
+    return [..._streamsWithGiveaways];
+  }
 
   final ReactiveList<Game> _topGames = ReactiveList();
   List<Game> get topGames => _topGames;
@@ -101,6 +105,7 @@ class HttpService with ReactiveServiceMixin {
       'Client-Id': clientId,
       'Authorization': 'Bearer $_accessToken',
     };
+    _streamsWithGiveaways.clear();
     for (var game in topGames) {
       log.i('Sniffing ${game.name}');
       var streamResponse = await http.get(
